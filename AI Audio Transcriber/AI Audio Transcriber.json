@@ -1,0 +1,191 @@
+{
+  "name": "AI Audio Transcriber",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {
+          "download": true
+        }
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "28ddd3bd-4cbc-4822-9953-997ff08f14f9",
+      "name": "Telegram Trigger",
+      "webhookId": "e375c83e-a544-4a6f-964c-949e3087e452",
+      "credentials": {
+        "telegramApi": {
+          "id": "hGSRneZ3rmdwAW2e",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.audio.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "3593c044-b1b4-462c-b45a-9cf0c6891fbd",
+      "name": "Get a file",
+      "webhookId": "5d4e14b0-00d1-4809-8731-402fea8ea012",
+      "credentials": {
+        "telegramApi": {
+          "id": "hGSRneZ3rmdwAW2e",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "4587ea16-92d0-4783-8941-2789a6b8a796",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "4bWEI4OMLv5nMTrR",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "Summarize for me this text."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        592,
+        0
+      ],
+      "id": "27979838-cac0-4f64-a2b8-bfea9c6be822",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "4bWEI4OMLv5nMTrR",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "pageId": {
+          "__rl": true,
+          "value": "=svsvsv",
+          "mode": "url"
+        },
+        "title": "={{ $('Telegram Trigger').item.json.update_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "4b0d297a-56ca-4069-8ca2-ae5b07a79374",
+      "name": "Create a page",
+      "credentials": {
+        "notionOAuth2Api": {
+          "id": "BpcOBZLMeE8AT3SU",
+          "name": "Notion OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Create a page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bfa57f05-1f10-40fb-8380-e45a13596c5a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0811cd30dfada1470b183a63bfc5129f3944cb7963a437cf37763b41afddd8ec"
+  },
+  "id": "0Ay9YlhQ2ZKAFNi2",
+  "tags": []
+}

@@ -1,0 +1,197 @@
+{
+  "name": "AI Agent Email Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ff01c73c-9efc-4863-a752-00f7a63ac9d2",
+      "name": "When chat message received",
+      "webhookId": "49b280d0-2516-485e-8934-bd30e0fa2b33"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an AI Email Assistant with access to:\n\n1. **AI Email Assistant Database (Google Sheets)** – contains contact information, including first names, last names, and email addresses.\n2. **sendEmail tool (Gmail)** – used to send emails.\n\n### Responsibilities\n\nWhen a user asks you to send an email:\n\n1. Determine the recipient's first and last name from the user's request.\n\n2. Search the AI Email Assistant Database for a matching contact.\n\n3. If exactly one matching contact is found:\n\n   * Retrieve the recipient's email address.\n   * Generate a professional and personalized email based on the user's instructions.\n   * Send the email using the sendEmail tool.\n   * Confirm that the email was sent successfully.\n\n4. If multiple matching contacts are found:\n\n   * Do not send the email.\n   * Ask the user which contact they would like to use.\n\n5. If no matching contact is found:\n\n   * Inform the user that the contact could not be located in the database.\n   * Ask the user to provide an email address or verify the contact name.\n\n### Email Guidelines\n\n* Personalize the email using the recipient's name whenever appropriate.\n* Use a professional and friendly tone unless the user requests otherwise.\n* Include a clear subject line.\n* Follow the user's instructions accurately.\n* Do not invent email addresses or contact information.\n* Do not send an email until a valid recipient email address has been found.\n\n### Example\n\nUser: \"Send an email to John Smith thanking him for attending our meeting.\"\n\nAssistant:\n\n1. Search the database for \"John Smith.\"\n2. Retrieve John's email address.\n3. Create a personalized thank-you email.\n4. Send the email using the sendEmail tool.\n5. Confirm: \"The email has been sent to John Smith.\"\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "51a54739-3715-4947-9775-df56e1f0049a",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        64,
+        208
+      ],
+      "id": "daa30847-9d14-4e17-ac5d-505805ac809a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "JRXrInvHskaqvbPm",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1GtkqlMNr12LZvy15f2KoqlAa4gFHjvQcCC0sW26yb6U",
+          "mode": "list",
+          "cachedResultName": "AI Email Assistant Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GtkqlMNr12LZvy15f2KoqlAa4gFHjvQcCC0sW26yb6U/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Customers",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1GtkqlMNr12LZvy15f2KoqlAa4gFHjvQcCC0sW26yb6U/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        544,
+        192
+      ],
+      "id": "b3475156-af3e-42e7-8d6f-d2c7a9d289b0",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "b3ELfieQB81lpkbS",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('To', ``, 'string') }}",
+        "subject": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Subject', ``, 'string') }}",
+        "emailType": "text",
+        "message": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Message', ``, 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        208
+      ],
+      "id": "f045b961-3de0-4850-a0d4-a5607ff045ed",
+      "name": "Send a message in Gmail",
+      "webhookId": "b6f62116-c136-45c4-8f2c-1df1aa303426",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "uwFJpzZ956CiKQDf",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        224,
+        208
+      ],
+      "id": "f7d08961-220c-45ae-b792-c5533b9d0006",
+      "name": "Simple Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message in Gmail": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e844a04f-ddd7-400d-818d-96c60e9ea4fc",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0811cd30dfada1470b183a63bfc5129f3944cb7963a437cf37763b41afddd8ec"
+  },
+  "id": "0KkdsnyV11Ta6mWG",
+  "tags": []
+}
