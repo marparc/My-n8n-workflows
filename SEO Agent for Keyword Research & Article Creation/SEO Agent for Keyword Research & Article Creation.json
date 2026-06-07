@@ -39,26 +39,6 @@
     },
     {
       "parameters": {
-        "model": "gpt-4o",
-        "options": {}
-      },
-      "id": "96b671eb-add2-4faa-bc50-157afe63a8fb",
-      "name": "OpenAI Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1,
-      "position": [
-        -80,
-        464
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "JRXrInvHskaqvbPm",
-          "name": "n8n free OpenAI API credits"
-        }
-      }
-    },
-    {
-      "parameters": {
         "content": "## Keywords Research",
         "height": 80,
         "width": 309,
@@ -343,10 +323,11 @@
           "mappingMode": "defineBelow",
           "value": {
             "SEO Article": "={{ $json.output }}",
-            "Campaign Description": "="
+            "Campaign Description": "=",
+            "row_number": "={{ $('Fetch Article').item.json.row_number }}"
           },
           "matchingColumns": [
-            "Campaign Description"
+            "row_number"
           ],
           "schema": [
             {
@@ -416,24 +397,7 @@
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
       "position": [
-        -1728,
-        336
-      ]
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "=Article Content:\n{{ $('Aggregate').item.json.text.toJsonString() }}\n",
-        "options": {
-          "systemMessage": "=#Role\nYou are an SEO-focused news article copywriter. Your job is to rewrite incoming articles into highly optimized, SEO-friendly news content that resonates with a clearly defined target audience.\n\nUse the following keywords throughout the content to enhance visibility:\n\n# SEO Keywords\n{{ $json['[\\'List of keywords\\']'] }}"
-        }
-      },
-      "id": "744c3cce-73e7-4531-a8e9-484f0671431d",
-      "name": "AI Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.7,
-      "position": [
-        -80,
+        -2096,
         336
       ]
     },
@@ -456,42 +420,6 @@
     },
     {
       "parameters": {
-        "modelId": {
-          "__rl": true,
-          "value": "gpt-4.1",
-          "mode": "list",
-          "cachedResultName": "GPT-4.1"
-        },
-        "messages": {
-          "values": [
-            {
-              "content": "=You are an expert SEO content writer. \nWrite detailed, engaging, and SEO-optimized \narticles based on provided keywords.",
-              "role": "system"
-            },
-            {
-              "content": "=Seed keyword: {{ $json.Keywords }}\n\nRelated keywords: {{ $json['List of keywords'] }}\n\nWrite a comprehensive, SEO-optimized article targeting these keywords. Include:\n- An engaging title\n- Introduction\n- Multiple headings and subheadings\n- Natural keyword integration\n- A conclusion"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "915bc093-42be-405e-a1c5-a2ee111dffe2",
-      "name": "OpenAI",
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.6,
-      "position": [
-        -1456,
-        336
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "sfYb5cXEQCYxCWz8",
-          "name": "OpenAI account 3"
-        }
-      }
-    },
-    {
-      "parameters": {
         "content": "## Repurpose Article",
         "height": 80,
         "width": 309,
@@ -502,8 +430,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -832,
-        208
+        -848,
+        224
       ]
     },
     {
@@ -562,7 +490,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -1600,
+        -1952,
         336
       ],
       "credentials": {
@@ -595,7 +523,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"query\": \"{{ $json.message.content }}\",\n  \"type\": \"neural\",\n  \"useAutoprompt\": true,\n  \"contents\": {\n    \"text\": true\n  }\n}",
+        "jsonBody": "={\n  \"query\": \"{{ $json.cleanOutput }}\",\n  \"type\": \"neural\",\n  \"useAutoprompt\": true,\n  \"contents\": {\n    \"text\": true\n  }\n}",
         "options": {}
       },
       "id": "65979500-0e8f-481e-bf67-c4064f42908d",
@@ -609,16 +537,86 @@
     },
     {
       "parameters": {
-        "content": "## This workflow was not tested due to lack of Open AI Credits."
+        "promptType": "define",
+        "text": "=Write an SEO article about the keyword: {{ $json.Keywords }}. \nUse these related keywords: {{ $json['List of keywords'] }}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.stickyNote",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
       "position": [
-        -784,
-        544
+        -1808,
+        336
       ],
+      "id": "10b3b835-65ad-4930-91dc-80c73f514bf5",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "model": "nvidia/nemotron-nano-12b-v2-vl:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
-      "id": "85118fc7-87be-4eb1-a13b-8a64836bce7d",
-      "name": "Sticky Note2"
+      "position": [
+        -1808,
+        512
+      ],
+      "id": "16376008-751a-4fad-80f7-0c37a2f69acc",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "SxR18OwTyjkt7a8O",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.output;\n\nconst cleaned = raw\n  .replace(/\\n/g, ' ')       // remove newlines\n  .replace(/\\r/g, ' ')       // remove carriage returns\n  .replace(/\\*\\*/g, '')      // remove markdown bold\n  .replace(/\\*/g, '')        // remove markdown italic\n  .replace(/\"/g, \"'\")        // replace double quotes with single\n  .trim();\n\nreturn [{ json: { cleanOutput: cleaned } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1424,
+        336
+      ],
+      "id": "e25ad7e4-1284-4492-a899-21d8d235e67f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a comprehensive SEO article for the main keyword: {{ $json['[\\'List of keywords\\']'][0] }}\n\nUse these related keywords naturally throughout the article:\n{{ $json['[\\'List of keywords\\']'].join(', ') }}\n\nRequirements:\n- Write a full SEO-optimized article (800-1200 words)\n- Include an engaging title, introduction, body sections with headings, and conclusion\n- Naturally incorporate all the related keywords\n- Make it informative and valuable for readers",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -64,
+        336
+      ],
+      "id": "becda686-b68e-42df-a7b3-3e5b7963c6a5",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-r1",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        512
+      ],
+      "id": "9dd7bded-bca7-47a4-ae6c-b7e20e07b127",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "SxR18OwTyjkt7a8O",
+          "name": "OpenRouter account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -640,17 +638,6 @@
           {
             "node": "Read SEO Keywords",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent",
-            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -766,33 +753,11 @@
         ]
       ]
     },
-    "AI Agent": {
-      "main": [
-        [
-          {
-            "node": "Update Article",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Schedule Trigger": {
       "main": [
         [
           {
             "node": "Fetch Keywords",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI": {
-      "main": [
-        [
-          {
-            "node": "Fetch Content (Exa)",
             "type": "main",
             "index": 0
           }
@@ -814,7 +779,7 @@
       "main": [
         [
           {
-            "node": "OpenAI",
+            "node": "AI Agent1",
             "type": "main",
             "index": 0
           }
@@ -831,6 +796,61 @@
           }
         ]
       ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Fetch Content (Exa)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -838,7 +858,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "e5f151f0-444c-485f-b425-57b60bb5cabc",
+  "versionId": "0eb6966c-52f7-41cc-90a4-15ca04a272d6",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "0811cd30dfada1470b183a63bfc5129f3944cb7963a437cf37763b41afddd8ec"
