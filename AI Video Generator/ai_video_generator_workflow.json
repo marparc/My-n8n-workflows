@@ -1,0 +1,467 @@
+{
+  "name": "AI Video Generator → Google Drive",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "node-chat-trigger",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "webhookId": "ai-video-chat-webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "You are a professional video prompt engineer specializing in AI video generation. Your task is to take a user's rough video idea and transform it into a highly detailed, cinematic video generation prompt.\n\nInclude:\n- Main subject and action\n- Visual style (cinematic, realistic, animated, etc.)\n- Camera movement (tracking shot, aerial view, close-up, etc.)\n- Lighting and color palette\n- Mood and atmosphere\n- Scene environment and background details\n\nRespond with ONLY the enhanced video prompt. No explanations, no preamble. Just the optimized prompt text, 2–4 sentences max."
+        }
+      },
+      "id": "node-ai-agent",
+      "name": "AI Prompt Enhancer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.6,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "id": "node-openai-model",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [260, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentOutput = $input.first().json.output || $input.first().json.text || '';\nreturn [{ json: { enhancedPrompt: agentOutput.trim() } }];"
+      },
+      "id": "node-extract-prompt",
+      "name": "Extract Enhanced Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://queue.fal.run/fal-ai/veo3/fast",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Key {{ $credentials.falApiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.enhancedPrompt }}"
+            },
+            {
+              "name": "duration",
+              "value": "8"
+            },
+            {
+              "name": "aspect_ratio",
+              "value": "16:9"
+            },
+            {
+              "name": "generate_audio",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-submit-video",
+      "name": "Submit Video Generation (fal.ai)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FAL_CREDENTIAL_ID",
+          "name": "fal.ai API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { request_id: $input.first().json.request_id, status_url: $input.first().json.status_url, enhancedPrompt: $('Extract Enhanced Prompt').first().json.enhancedPrompt, attempts: 0 } }];"
+      },
+      "id": "node-store-job-id",
+      "name": "Store Job ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 300]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "node-wait",
+      "name": "Wait 30 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://queue.fal.run/fal-ai/veo3/fast/requests/{{ $('Store Job ID').first().json.request_id }}/status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Key {{ $credentials.falApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-check-status",
+      "name": "Check Video Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FAL_CREDENTIAL_ID",
+          "name": "fal.ai API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-completed",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "COMPLETED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-is-done",
+      "name": "Video Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1820, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://queue.fal.run/fal-ai/veo3/fast/requests/{{ $('Store Job ID').first().json.request_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Key {{ $credentials.falApiKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-get-result",
+      "name": "Get Video Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2080, 180],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_FAL_CREDENTIAL_ID",
+          "name": "fal.ai API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.video.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "node-download-video",
+      "name": "Download Video File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2340, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prompt = $('Store Job ID').first().json.enhancedPrompt || 'video';\nconst safeTitle = prompt.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 40).trim().replace(/ /g, '_');\nconst timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);\nconst filename = `AI_Video_${safeTitle}_${timestamp}.mp4`;\nreturn [{ json: { filename, enhancedPrompt: prompt }, binary: $input.first().binary }];"
+      },
+      "id": "node-set-filename",
+      "name": "Set Filename",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 180]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $json.filename }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "REPLACE_GOOGLE_DRIVE_FOLDER_ID",
+          "mode": "id"
+        },
+        "inputDataFieldName": "data",
+        "options": {
+          "convertToGoogleDocument": false
+        }
+      },
+      "id": "node-upload-drive",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2860, 180],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=✅ Your video has been generated and saved to Google Drive!\n\n📁 File: {{ $('Set Filename').first().json.filename }}\n🔗 Drive Link: {{ $json.webViewLink }}\n\n🎬 Prompt used:\n{{ $('Store Job ID').first().json.enhancedPrompt }}"
+      },
+      "id": "node-respond-success",
+      "name": "Respond: Success",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1,
+      "position": [3120, 180]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "⏳ Video is still generating... checking again in 30 seconds."
+      },
+      "id": "node-respond-wait",
+      "name": "Still Processing",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2080, 420]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Prompt Enhancer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Prompt Enhancer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Prompt Enhancer": {
+      "main": [
+        [
+          {
+            "node": "Extract Enhanced Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Enhanced Prompt": {
+      "main": [
+        [
+          {
+            "node": "Submit Video Generation (fal.ai)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit Video Generation (fal.ai)": {
+      "main": [
+        [
+          {
+            "node": "Store Job ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Job ID": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30 Seconds": {
+      "main": [
+        [
+          {
+            "node": "Check Video Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Video Status": {
+      "main": [
+        [
+          {
+            "node": "Video Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Ready?": {
+      "main": [
+        [
+          {
+            "node": "Get Video Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Still Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still Processing": {
+      "main": [
+        [
+          {
+            "node": "Wait 30 Seconds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Video Result": {
+      "main": [
+        [
+          {
+            "node": "Download Video File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video File": {
+      "main": [
+        [
+          {
+            "node": "Set Filename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Filename": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Respond: Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["ai", "video", "google-drive", "fal.ai"],
+  "triggerCount": 1,
+  "updatedAt": "2026-06-17T00:00:00.000Z",
+  "versionId": "1"
+}
