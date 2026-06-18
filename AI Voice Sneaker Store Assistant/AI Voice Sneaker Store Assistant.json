@@ -1,0 +1,576 @@
+{
+  "name": "AI Voice Sneaker Store Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vapi-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7ff891fe-56ee-4fb4-b35b-6eb7e795b1b4",
+      "name": "VAPI Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -5088,
+        944
+      ],
+      "webhookId": "vapi-sneaker-store-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-message-type",
+              "leftValue": "={{ $json.body.message.type }}",
+              "rightValue": "function-call",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f0b4c538-64e0-4afc-8e42-03878baaba64",
+      "name": "Check Message Type",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4864,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-function-name",
+              "leftValue": "={{ $json.body.message.functionCall.name }}",
+              "rightValue": "check_stock",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1abafb2-bf41-45b3-98cc-846a1ad66a30",
+      "name": "Route by Function",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4656,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst message = body.message || {};\nconst call = body.call || {};\n\nlet functionName = '';\nlet functionArgs = {};\nlet callerPhone = '';\nlet callerEmail = '';\n\nif (message.type === 'function-call') {\n  functionName = message.functionCall?.name || '';\n  try {\n    functionArgs = typeof message.functionCall?.parameters === 'string'\n      ? JSON.parse(message.functionCall.parameters)\n      : message.functionCall?.parameters || {};\n  } catch(e) {\n    functionArgs = {};\n  }\n}\n\nif (message.type === 'end-of-call-report') {\n  const transcript = message.transcript || '';\n  const emailMatch = transcript.match(/[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/);\n  callerEmail = emailMatch ? emailMatch[0] : '';\n  callerPhone = call.customer?.number || '';\n}\n\nreturn [\n  {\n    json: {\n      messageType: message.type,\n      functionName,\n      functionArgs,\n      callerPhone: callerPhone || call.customer?.number || '',\n      callerEmail,\n      callId: call.id || '',\n      rawBody: body\n    }\n  }\n];"
+      },
+      "id": "55196515-9d10-4cff-8d6b-09d0d359111b",
+      "name": "Parse VAPI Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4864,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1g10rcF30n4vbOyi2MMAKHsXKHS07XSuL1j0kdCV66Sw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Products",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "801c8c5a-3959-488b-ba0e-c95798bb6c96",
+      "name": "Get Products Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -4432,
+        736
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "o2k3QXNLoUO82DYx",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1g10rcF30n4vbOyi2MMAKHsXKHS07XSuL1j0kdCV66Sw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Inventory",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "bc779c72-075e-4ade-b9dd-d441a3a6d870",
+      "name": "Get Inventory Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -4432,
+        896
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "o2k3QXNLoUO82DYx",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read directly from webhook trigger to avoid cross-branch node reference issues\nconst triggerData = $node['VAPI Webhook Trigger'].json.body;\nconst rawArgs = triggerData?.message?.functionCall?.parameters || {};\nconst functionArgs = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;\n\nconst searchBrand = (functionArgs?.brand || '').toLowerCase();\nconst searchModel = (functionArgs?.model || '').toLowerCase();\nconst searchSize = functionArgs?.size_us ? String(functionArgs.size_us) : '';\nconst searchColorway = (functionArgs?.colorway || '').toLowerCase();\nconst searchGender = (functionArgs?.gender || '').toLowerCase();\n\n// Get all products and inventory from previous nodes\nconst allItems = $input.all();\n\nconst products = [];\nconst inventory = [];\n\nfor (const item of allItems) {\n  const row = item.json;\n  if (row.product_id && row.brand) {\n    products.push(row);\n  } else if (row.inventory_id && row.product_id) {\n    inventory.push(row);\n  }\n}\n\n// Filter products based on search criteria\nlet matchedProducts = products.filter(p => {\n  let match = true;\n  const pBrand = String(p.brand || '').toLowerCase();\n  const pModel = String(p.model || '').toLowerCase();\n  const pColorway = String(p.colorway || '').toLowerCase();\n  const pGender = String(p.gender || '').toLowerCase();\n\n  if (searchBrand && !pBrand.includes(searchBrand)) match = false;\n  if (searchModel && !pModel.includes(searchModel)) match = false;\n  if (searchColorway && !pColorway.includes(searchColorway)) match = false;\n  if (searchGender && searchGender !== 'any' && !pGender.includes(searchGender) && pGender !== 'unisex') match = false;\n  return match;\n});\n\n// For each matched product, find inventory\nconst results = [];\nfor (const product of matchedProducts) {\n  const productInventory = inventory.filter(inv => inv.product_id === product.product_id);\n\n  let relevantInventory = productInventory;\n  if (searchSize) {\n    relevantInventory = productInventory.filter(inv => String(inv.size_us) === searchSize);\n  }\n\n  for (const inv of relevantInventory) {\n    results.push({\n      product_id: product.product_id,\n      brand: product.brand,\n      model: product.model,\n      colorway: product.colorway,\n      gender: product.gender,\n      base_price_php: product.base_price_php,\n      inventory_id: inv.inventory_id,\n      size_us: inv.size_us,\n      stock_qty: parseInt(inv.stock_qty) || 0,\n      sku_code: inv.sku_code\n    });\n  }\n}\n\n// Determine in-stock vs out-of-stock\nconst inStock = results.filter(r => r.stock_qty > 0);\nconst outOfStock = results.filter(r => r.stock_qty === 0);\n\n// Build recommendations if nothing in stock\nconst requestedProductIds = matchedProducts.map(p => p.product_id);\nlet recommendations = [];\n\nif (inStock.length === 0 && matchedProducts.length > 0) {\n  const otherProducts = products.filter(p => !requestedProductIds.includes(p.product_id));\n  for (const p of otherProducts) {\n    const pInventory = inventory.filter(inv => inv.product_id === p.product_id && parseInt(inv.stock_qty) > 0);\n    if (pInventory.length > 0) {\n      const sizeMatch = searchSize\n        ? pInventory.filter(inv => String(inv.size_us) === searchSize)\n        : pInventory;\n      if (sizeMatch.length > 0) {\n        recommendations.push({\n          brand: p.brand,\n          model: p.model,\n          colorway: p.colorway,\n          gender: p.gender,\n          base_price_php: p.base_price_php,\n          available_sizes: sizeMatch.map(i => `US ${i.size_us} (${i.stock_qty} in stock)`).join(', ')\n        });\n      }\n    }\n  }\n  recommendations = recommendations.slice(0, 3);\n}\n\n// Build voice-friendly response\nlet voiceResponse = '';\nif (results.length === 0) {\n  voiceResponse = `I'm sorry, I couldn't find any sneakers matching your request in our inventory. Would you like me to suggest some available styles?`;\n} else if (inStock.length > 0) {\n  const stockLines = inStock.map(r =>\n    `${r.brand} ${r.model} in ${r.colorway}, Size US ${r.size_us}, ${r.stock_qty} pair${r.stock_qty > 1 ? 's' : ''} available, priced at ${parseInt(r.base_price_php).toLocaleString()} Philippine Pesos`\n  ).join('. ');\n  voiceResponse = `Great news! We have the following in stock: ${stockLines}. Would you like to reserve a pair? If so, please tell me your email address and I'll send you a confirmation.`;\n} else {\n  const shoeNames = [...new Set(results.map(r => `${r.brand} ${r.model}`))].join(' and ');\n  voiceResponse = `I'm sorry, the ${shoeNames} is currently out of stock in the size you requested. But don't worry, I have some great alternatives in stock for you. Would you like me to tell you about them?`;\n}\n\nreturn [\n  {\n    json: {\n      searchParams: { brand: searchBrand, model: searchModel, size: searchSize, colorway: searchColorway, gender: searchGender },\n      results,\n      inStock,\n      outOfStock,\n      recommendations,\n      hasStock: inStock.length > 0,\n      noMatch: results.length === 0,\n      voiceResponse,\n      callerPhone: triggerData?.call?.customer?.number || '',\n      callerEmail: '',\n      callId: triggerData?.call?.id || ''\n    }\n  }\n];"
+      },
+      "id": "61e2208b-897f-4ba0-b371-b6688498e14e",
+      "name": "Process Stock Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4192,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ result: $json.voiceResponse }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "d6361551-2503-42fc-a092-8414c34e6902",
+      "name": "Respond to VAPI - Stock Info",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -3968,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Data comes from Parse VAPI Payload — body is already extracted\nconst input = $input.first().json;\n\n// Support both raw body and pre-parsed input\nconst body = input.rawBody || input;\nconst message = body.message || input.rawBody?.message || {};\nconst call = body.call || input.rawBody?.call || {};\n\nconst transcript = message.transcript || '';\nconst summary = message.summary || '';\nconst recordingUrl = message.recordingUrl || '';\n\n// Extract email from transcript\nconst emailMatch = transcript.match(/[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}/);\nconst callerEmail = emailMatch ? emailMatch[0] : '';\nconst callerPhone = call.customer?.number || input.callerPhone || '';\n\n// Extract shoe details mentioned\nconst brands = ['Nike', 'Adidas', 'New Balance', 'Puma'];\nconst mentionedBrands = brands.filter(b => transcript.toLowerCase().includes(b.toLowerCase()));\n\n// Detect if purchase/reservation was confirmed\nconst confirmKeywords = ['yes', 'confirm', 'reserve', 'book', 'want it', \"i'll take\", 'proceed'];\nconst wantsConfirmation = confirmKeywords.some(kw => transcript.toLowerCase().includes(kw));\n\n// Detect if recommendations were requested\nconst recoKeywords = ['alternative', 'recommend', 'other', 'suggestion', 'similar', 'something else'];\nconst wantsRecommendation = recoKeywords.some(kw => transcript.toLowerCase().includes(kw));\n\nreturn [\n  {\n    json: {\n      callerEmail,\n      callerPhone,\n      transcript,\n      summary,\n      recordingUrl,\n      mentionedBrands,\n      wantsConfirmation,\n      wantsRecommendation,\n      callId: call.id || input.callId || '',\n      callDuration: message.durationSeconds || 0\n    }\n  }\n];"
+      },
+      "id": "1d6839aa-47a6-44b8-8dc6-96bfa5170426",
+      "name": "Parse End of Call Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4656,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-email-exists",
+              "leftValue": "={{ $json.callerEmail }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1bf32c30-d3f9-4e58-98c4-eb897a01752b",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4432,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-wants-confirmation",
+              "leftValue": "={{ $json.wantsConfirmation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5ef4544c-454c-407b-8148-50e0c14eb8ff",
+      "name": "Confirmation or Recommendation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4208,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst subject = `✅ Your Sneaker Reservation — Kick Supply Co.`;\n\nconst htmlBody = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #0f0f0f; color: #f0f0f0; margin: 0; padding: 0; }\n    .container { max-width: 600px; margin: 0 auto; padding: 40px 24px; }\n    .header { text-align: center; padding-bottom: 32px; border-bottom: 1px solid #2a2a2a; }\n    .logo { font-size: 22px; font-weight: 700; letter-spacing: 0.1em; color: #fff; text-transform: uppercase; }\n    .logo span { color: #f97316; }\n    .hero { padding: 40px 0 32px; }\n    .hero h1 { font-size: 28px; font-weight: 700; color: #ffffff; margin: 0 0 12px; }\n    .hero p { font-size: 15px; color: #a0a0a0; line-height: 1.6; margin: 0; }\n    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; margin: 24px 0; }\n    .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #f97316; margin: 0 0 16px; }\n    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; font-size: 14px; }\n    .detail-row:last-child { border-bottom: none; }\n    .detail-label { color: #888; }\n    .detail-value { color: #fff; font-weight: 500; }\n    .cta { text-align: center; margin: 32px 0; }\n    .cta a { background: #f97316; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; display: inline-block; }\n    .footer { text-align: center; font-size: 12px; color: #555; padding-top: 32px; border-top: 1px solid #2a2a2a; line-height: 1.8; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <div class=\"logo\">Kick<span>Supply</span> Co.</div>\n    </div>\n    <div class=\"hero\">\n      <h1>Your reservation is locked in. 🔒</h1>\n      <p>Thanks for calling us! Below is a summary of your reservation request. Our team will reach out to finalize payment and pickup/delivery details within 24 hours.</p>\n    </div>\n    <div class=\"card\">\n      <h2>Reservation Summary</h2>\n      <div class=\"detail-row\">\n        <span class=\"detail-label\">Call Reference</span>\n        <span class=\"detail-value\">#${data.callId || 'N/A'}</span>\n      </div>\n      <div class=\"detail-row\">\n        <span class=\"detail-label\">Contact Number</span>\n        <span class=\"detail-value\">${data.callerPhone || 'Not provided'}</span>\n      </div>\n      <div class=\"detail-row\">\n        <span class=\"detail-label\">Brands Discussed</span>\n        <span class=\"detail-value\">${data.mentionedBrands && data.mentionedBrands.length > 0 ? data.mentionedBrands.join(', ') : 'See transcript'}</span>\n      </div>\n      <div class=\"detail-row\">\n        <span class=\"detail-label\">Call Duration</span>\n        <span class=\"detail-value\">${data.callDuration ? Math.round(data.callDuration / 60) + ' min' : 'N/A'}</span>\n      </div>\n    </div>\n    <div class=\"card\">\n      <h2>What happens next?</h2>\n      <div class=\"detail-row\"><span class=\"detail-label\">1. Verification</span><span class=\"detail-value\">We confirm your item is held</span></div>\n      <div class=\"detail-row\"><span class=\"detail-label\">2. Payment</span><span class=\"detail-value\">GCash / Bank Transfer / COD</span></div>\n      <div class=\"detail-row\"><span class=\"detail-label\">3. Shipping</span><span class=\"detail-value\">Nationwide via LBC / J&T</span></div>\n    </div>\n    <div class=\"cta\">\n      <a href=\"https://kicksupply.co/orders\">Track My Order</a>\n    </div>\n    <div class=\"footer\">\n      Kick Supply Co. &bull; Cebu City, Philippines<br>\n      Questions? Reply to this email or call us back.<br>\n      &copy; 2026 Kick Supply Co. All rights reserved.\n    </div>\n  </div>\n</body>\n</html>\n`;\n\nreturn [\n  {\n    json: {\n      to: data.callerEmail,\n      subject,\n      htmlBody,\n      type: 'confirmation'\n    }\n  }\n];"
+      },
+      "id": "e0c19857-105d-4561-9e31-ddf736dc33a5",
+      "name": "Build Confirmation Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3984,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst subject = `👟 We found some great alternatives for you — Kick Supply Co.`;\n\nconst allProducts = [\n  { brand: 'Nike', model: 'Air Force 1 Low', colorway: 'White/White', gender: 'Men', price: 6500, sizes: 'US 8 (2 pairs), US 9 (5 pairs)' },\n  { brand: 'Nike', model: 'Dunk Low', colorway: 'Panda (Black/White)', gender: 'Unisex', price: 7200, sizes: 'US 9 (1 pair)' },\n  { brand: 'Adidas', model: 'Ultraboost 22', colorway: 'Triple Black', gender: 'Men', price: 9500, sizes: 'US 8 (3 pairs)' },\n  { brand: 'New Balance', model: '550', colorway: 'White/Green', gender: 'Unisex', price: 8200, sizes: 'US 7 (2 pairs), US 9 (4 pairs)' },\n  { brand: 'Puma', model: 'RS-X', colorway: 'White/Blue', gender: 'Men', price: 6900, sizes: 'US 8 (6 pairs)' }\n];\n\nconst mentionedBrands = data.mentionedBrands || [];\nconst recommendations = allProducts\n  .filter(p => !mentionedBrands.some(b => b.toLowerCase() === p.brand.toLowerCase()))\n  .slice(0, 3);\n\nconst recoCards = recommendations.map(r => `\n  <div class=\"card\">\n    <div class=\"detail-row\"><span class=\"detail-label\">Brand</span><span class=\"detail-value\">${r.brand}</span></div>\n    <div class=\"detail-row\"><span class=\"detail-label\">Model</span><span class=\"detail-value\">${r.model}</span></div>\n    <div class=\"detail-row\"><span class=\"detail-label\">Colorway</span><span class=\"detail-value\">${r.colorway}</span></div>\n    <div class=\"detail-row\"><span class=\"detail-label\">For</span><span class=\"detail-value\">${r.gender}</span></div>\n    <div class=\"detail-row\"><span class=\"detail-label\">Price</span><span class=\"detail-value\">₱${r.price.toLocaleString()}</span></div>\n    <div class=\"detail-row\"><span class=\"detail-label\">Sizes In Stock</span><span class=\"detail-value\">${r.sizes}</span></div>\n  </div>\n`).join('');\n\nconst htmlBody = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <style>\n    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #0f0f0f; color: #f0f0f0; margin: 0; padding: 0; }\n    .container { max-width: 600px; margin: 0 auto; padding: 40px 24px; }\n    .header { text-align: center; padding-bottom: 32px; border-bottom: 1px solid #2a2a2a; }\n    .logo { font-size: 22px; font-weight: 700; letter-spacing: 0.1em; color: #fff; text-transform: uppercase; }\n    .logo span { color: #f97316; }\n    .hero { padding: 40px 0 32px; }\n    .hero h1 { font-size: 28px; font-weight: 700; color: #ffffff; margin: 0 0 12px; }\n    .hero p { font-size: 15px; color: #a0a0a0; line-height: 1.6; margin: 0; }\n    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; margin: 24px 0; }\n    .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.1em; color: #f97316; margin: 0 0 16px; }\n    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #222; font-size: 14px; }\n    .detail-row:last-child { border-bottom: none; }\n    .detail-label { color: #888; }\n    .detail-value { color: #fff; font-weight: 500; }\n    .cta { text-align: center; margin: 32px 0; }\n    .cta a { background: #f97316; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-size: 15px; font-weight: 600; display: inline-block; }\n    .footer { text-align: center; font-size: 12px; color: #555; padding-top: 32px; border-top: 1px solid #2a2a2a; line-height: 1.8; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <div class=\"logo\">Kick<span>Supply</span> Co.</div>\n    </div>\n    <div class=\"hero\">\n      <h1>Your size. Different kicks. 👟</h1>\n      <p>The pair you were looking for isn't available right now, but we've handpicked some heat that might be exactly what you need. All items below are in stock and ready to ship.</p>\n    </div>\n    <h2 style=\"font-size:14px;text-transform:uppercase;letter-spacing:0.1em;color:#f97316;margin:0 0 8px;\">Recommended For You</h2>\n    ${recoCards}\n    <div class=\"cta\">\n      <a href=\"https://kicksupply.co/shop\">Browse Full Catalog</a>\n    </div>\n    <div class=\"footer\">\n      Kick Supply Co. &bull; Cebu City, Philippines<br>\n      Like what you see? Call us back or reply to this email to reserve.<br>\n      &copy; 2026 Kick Supply Co. All rights reserved.\n    </div>\n  </div>\n</body>\n</html>\n`;\n\nreturn [\n  {\n    json: {\n      to: data.callerEmail,\n      subject,\n      htmlBody,\n      type: 'recommendation'\n    }\n  }\n];"
+      },
+      "id": "ec4da59a-326a-42e4-a539-6842d209bb7f",
+      "name": "Build Recommendation Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3984,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "replyTo": "support@kicksupply.co"
+        }
+      },
+      "id": "026aa433-4828-4127-8ba4-a5f6b1d41fa2",
+      "name": "Send Email (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -3744,
+        1152
+      ],
+      "webhookId": "80dacafb-9217-4a57-88f9-3b00c2a49281",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "rqtrJwxjqEAuuYRr",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b9e82a46-fbe3-42be-9244-ec9936580158",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -3664,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"no_email_captured\" }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "9614ae5f-1306-4aef-a2b2-c10165d1ada3",
+      "name": "No Email — Skip",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -4208,
+        1296
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ result: 'I can help you check our inventory. Please tell me the brand, model, size, and any color preference for the sneaker you are looking for.' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b5ba3326-4235-4445-b7f0-b748dca86ee7",
+      "name": "Respond - Unknown Function",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -4432,
+        1056
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "VAPI Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Message Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Message Type": {
+      "main": [
+        [
+          {
+            "node": "Route by Function",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse VAPI Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse VAPI Payload": {
+      "main": [
+        [
+          {
+            "node": "Parse End of Call Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Function": {
+      "main": [
+        [
+          {
+            "node": "Get Products Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Inventory Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Unknown Function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Products Sheet": {
+      "main": [
+        [
+          {
+            "node": "Process Stock Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inventory Sheet": {
+      "main": [
+        [
+          {
+            "node": "Process Stock Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Stock Check": {
+      "main": [
+        [
+          {
+            "node": "Respond to VAPI - Stock Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse End of Call Report": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Confirmation or Recommendation?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Email — Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmation or Recommendation?": {
+      "main": [
+        [
+          {
+            "node": "Build Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Recommendation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Recommendation Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Gmail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "66a59ba8-b1f4-4ade-ab4b-bde66fe8e53c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f4fe9d76e065f98ce4d65ded747fd9a19ab578574999a2e7756939a74f26d96c"
+  },
+  "nodeGroups": [],
+  "id": "9xaN2iEMibcs7bE4",
+  "tags": [
+    {
+      "name": "voice-ai",
+      "id": "H05Zm12MlpGWbJ0c",
+      "updatedAt": "2026-06-18T04:19:47.097Z",
+      "createdAt": "2026-06-18T04:19:47.097Z"
+    },
+    {
+      "name": "ecommerce",
+      "id": "HPGKonKEclx9A47Q",
+      "updatedAt": "2026-06-18T04:19:47.101Z",
+      "createdAt": "2026-06-18T04:19:47.101Z"
+    }
+  ]
+}
